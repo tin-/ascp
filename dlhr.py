@@ -29,7 +29,7 @@ cfg.read('pressure.conf')
 cfg.sections()
 
 # ASC_DLHR default address.
-ASC_DLHR_I2CADDR = 0x41
+ASC_DLHR_I2CADDR = 0x29
 
 # ASC_DLHR Commands
 ASC_DLHR_SINGLE_READ_CMD = 0xAA
@@ -47,21 +47,26 @@ ASC_DLHR_STS_EEPROM_CHKERR = 0b00000100
 ASC_DLHR_STS_SNSCFG        = 0b00000010
 ASC_DLHR_STS_ALUERR        = 0b00000001
 
+global bus
+
 class ASC_DLHR(object):
     def __init__(self, mode=ASC_DLHR_I2CADDR, address=ASC_DLHR_I2CADDR, i2c=None,
                  **kwargs):
         self._logger = logging.getLogger('Adafruit_BMP.BMP085')
         # Check that mode is valid.
-        if mode != 0x41:
+        if mode != 0x29:
             raise ValueError('Unexpected address'.format(mode))
         self._mode = mode
+        global bus
         
         # Create I2C device.
         if cfg.get('main', 'if_debug', 1) == 'false':
             if i2c is None:
-                import Adafruit_GPIO.I2C as I2C
-                i2c = I2C
-            self._device = i2c.get_i2c_device(address, **kwargs)
+                #import Adafruit_GPIO.I2C as I2C
+                #i2c = I2C
+                from smbus import SMBus
+                bus = SMBus(1)
+            #self._device = i2c.get_i2c_device(address, **kwargs)
         
         # Load calibration values.
         #self._load_calibration()
@@ -69,24 +74,33 @@ class ASC_DLHR(object):
         
     def write_cmd(self, cmd):
         if cfg.get('main', 'if_debug', 1) == 'false':
-            self._device.writeRaw8(cmd)
-            self._device.writeRaw8(0x00)
-            self._device.writeRaw8(0x00)
-        if cfg.get('main', 'if_debug', 1) == 'true':
-            print "\033[31;1mDebug mode only, command = %X\033[0;39m" % cmd,
-        time.sleep(0.05)
+            bus.write_i2c_block_data(ASC_DLHR_I2CADDR, cmd, [0x00, 0x00])
+            #self._device.writeRaw8(self.dcmd)
+            time.sleep(0.01)
+            
+            #bus.write_byte(ASC_DLHR_I2CADDR, 0)
+            #self._device.writeRaw8(0x00)
+            #time.sleep(0.01)
+	    
+            #bus.write_byte(ASC_DLHR_I2CADDR, 0)
+            #self._device.writeRaw8(0x00)
+            #time.sleep(0.01)
+	if cfg.get('main', 'if_debug', 1) == 'true':
+	    print "\033[31;1mDebug mode only, command = %X\033[0;39m" % cmd,
+        time.sleep(0.2)
         return 1
 
     def chk_busy(self):
         if cfg.get('main', 'if_debug', 1) == 'false':
-            Status = self._device.readRaw8()  # Receive Status byte 
+            Status = bus.read_byte(ASC_DLHR_I2CADDR)
+	    #Status = self._device.readRaw8()  # Receive Status byte 
         if cfg.get('main', 'if_debug', 1) == 'true':
             Status = 0x40
         
         if (Status & ASC_DLHR_STS_BUSY):
             print "\033[31;1m\r\nPower On status not set!\033[0;39m",
             return 1 # sensor is busy
-        
+        time.sleep(0.2)
         return 0     # sensor is ready
         
     def read_sensor(self):
@@ -94,6 +108,7 @@ class ASC_DLHR(object):
     
         #// wait for completion
         #while (LOW == digitalRead(EOCPIN))
+        time.sleep(1)
         self.retry_num = 5
         while self.retry_num > 0:
             if self.chk_busy():
@@ -104,16 +119,24 @@ class ASC_DLHR(object):
             self.retry_num = self.retry_num - 1
         
         if cfg.get('main', 'if_debug', 1) == 'false':
-            StatusByte = self._device.readRaw8()  # Receive Status byte 
-            outb[0] = self._device.readRaw8()     # Receive Pressure 3 data byte
-            outb[1] = self._device.readRaw8()     # Receive Pressure 2 data byte
-            outb[2] = self._device.readRaw8()     # Receive Pressure 1 data byte
-            outb[3] = self._device.readRaw8()     # Receive Temp 3 data byte
-            outb[4] = self._device.readRaw8()     # Receive Temp 2 data byte
-            outb[5] = self._device.readRaw8()     # Receive Temp 1 data byte
-        
+            #StatusByte = self._device.readRaw8()  # Receive Status byte 
+            #outb[0] = self._device.readRaw8()     # Receive Pressure 3 data byte
+            #outb[1] = self._device.readRaw8()     # Receive Pressure 2 data byte
+            #outb[2] = self._device.readRaw8()     # Receive Pressure 1 data byte
+            #outb[3] = self._device.readRaw8()     # Receive Temp 3 data byte
+            #outb[4] = self._device.readRaw8()     # Receive Temp 2 data byte
+            #outb[5] = self._device.readRaw8()     # Receive Temp 1 data byte
+    	    StatusByte = bus.read_byte(ASC_DLHR_I2CADDR)
+	    outb[0] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    outb[1] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    outb[2] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    outb[3] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    outb[4] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    outb[5] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    print outb # outb = bus.read_i2c_block_data(ASC_DLHR_I2CADDR, 0, 6)
+
         if cfg.get('main', 'if_debug', 1) == 'true':
-            StatusByte = 0x40
+            StatusByte = 0xFF
             outb[0] = 0x55
             outb[1] = 0x55
             outb[2] = 0x55
@@ -148,7 +171,7 @@ class ASC_DLHR(object):
         print "Pressure: %4.5f %%FSS " % fPress,
         print "Temperature: %3.2f 'C " % fTemp,
         
-        print " 0x%02X%02X%02X " % (outb[0], outb[1], outb[2]),
+        print " 0x%04X %04X %04X " % (outb[0], outb[1], outb[2]),
         
         Tmp = outb[3] << 16;
         Tmp += outb[4] << 8;
