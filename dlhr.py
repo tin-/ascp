@@ -31,13 +31,6 @@ cfg.sections()
 # ASC_DLHR default address.
 ASC_DLHR_I2CADDR = 0x41
 
-# Operating Modes
-ASC_DLHR_OSAMPLE_1 = 1
-ASC_DLHR_OSAMPLE_2 = 2
-ASC_DLHR_OSAMPLE_4 = 3
-ASC_DLHR_OSAMPLE_8 = 4
-ASC_DLHR_OSAMPLE_16 = 5
-
 # ASC_DLHR Commands
 ASC_DLHR_SINGLE_READ_CMD = 0xAA
 ASC_DLHR_AVG2_READ_CMD   = 0xAC
@@ -55,14 +48,12 @@ ASC_DLHR_STS_SNSCFG        = 0b00000010
 ASC_DLHR_STS_ALUERR        = 0b00000001
 
 class ASC_DLHR(object):
-    def __init__(self, mode=ASC_DLHR_OSAMPLE_1, address=ASC_DLHR_I2CADDR, i2c=None,
+    def __init__(self, mode=ASC_DLHR_I2CADDR, address=ASC_DLHR_I2CADDR, i2c=None,
                  **kwargs):
         self._logger = logging.getLogger('Adafruit_BMP.BMP085')
         # Check that mode is valid.
-        if mode not in [ASC_DLHR_OSAMPLE_1, ASC_DLHR_OSAMPLE_2, ASC_DLHR_OSAMPLE_4,
-                        ASC_DLHR_OSAMPLE_8, ASC_DLHR_OSAMPLE_16]:
-            raise ValueError(
-                'Unexpected mode value {0}.  Set mode to one of ASC_DLHR_ULTRALOWPOWER, ASC_DLHR_STANDARD, ASC_DLHR_HIGHRES, or ASC_DLHR_ULTRAHIGHRES'.format(mode))
+        if mode != 0x41:
+            raise ValueError('Unexpected address'.format(mode))
         self._mode = mode
         
         # Create I2C device.
@@ -74,7 +65,6 @@ class ASC_DLHR(object):
         
         # Load calibration values.
         #self._load_calibration()
-        #self._device.write8(ASC_DLHR_REGISTER_CONTROL, 0x3F)
         #self.t_fine = 0.0
         
     def write_cmd(self, cmd):
@@ -104,14 +94,14 @@ class ASC_DLHR(object):
     
         #// wait for completion
         #while (LOW == digitalRead(EOCPIN))
-        retry_num = 5
-        while retry_num > 0:
+        self.retry_num = 5
+        while self.retry_num > 0:
             if self.chk_busy():
                 print "\033[31;1m\r\nSensor is busy!\033[0;39m",
                 time.sleep(0.05)                       # Sleep for 100ms
             else:
-                retry_num = 0
-            retry_num = retry_num - 1
+                self.retry_num = 0
+            self.retry_num = self.retry_num - 1
         
         if cfg.get('main', 'if_debug', 1) == 'false':
             StatusByte = self._device.readRaw8()  # Receive Status byte 
