@@ -33,7 +33,7 @@ if cfg.get('dut', 'dut', 1) == 'asc_dlhr':
         # ASC DLHR sensor with I2C interface
         from dlhr import *
         sensorhw = imp.load_source('dlhr', 'dlhr.py')
-        sensor = sensorhw.ASC_DLHR(mode = 4)
+        sensor = sensorhw.ASC_DLHR(mode=ASC_DLHR_I2CADDR)
 
 menu = """\033[1;32m[0] - Help guide
 [1] - Detect instruments
