@@ -28,12 +28,28 @@ cfg = ConfigParser.ConfigParser()
 cfg.read('pressure.conf')
 cfg.sections()
 
-if cfg.get('dut', 'dut', 1) == 'asc_dlhr':
-    if cfg.get('main', 'interface', 1) == 'i2c':
-        # ASC DLHR sensor with I2C interface
+if cfg.get('main', 'interface', 1) == 'i2c':
+    raise ValueError ('I2C interface not supported, change to SPI')
+if cfg.get('main', 'interface', 1) == 'spi':
+    if cfg.get('dut', 'dut', 1) == 'asc_dlhr':
+        # ASC DLHR sensor with SPI interface
         from dlhr import *
         sensorhw = imp.load_source('dlhr', 'dlhr.py')
         sensor = sensorhw.ASC_DLHR(mode=ASC_DLHR_I2CADDR)
+    if cfg.get('dut', 'dut', 1) == 'rsc':
+        # ASC DLHR sensor with SPI interface
+        from rsc import *
+        sensorhw = imp.load_source('rsc', 'rsc.py')
+        sensor = sensorhw.HRSC(mode=HRSC)
+    if cfg.get('dut', 'dut', 1) == 'all':
+        # ASC DLHR sensor with SPI interface
+        from dlhr import *
+        from rsc import *
+        sensorhw = imp.load_source('dlhr', 'dlhr.py')
+        sensor = sensorhw.ASC_DLHR(mode=ASC_DLHR_I2CADDR)
+        sensorhws = imp.load_source('rsc', 'rsc.py')
+        sensor2 = sensorhws.HRSC(mode=HRSC)
+    
 
 menu = """\033[1;32m[0] - Help guide
 [1] - Detect instruments
@@ -48,6 +64,7 @@ menu = """\033[1;32m[0] - Help guide
 [10] - d: Read part 8x oversampled Pressure & Temp
 [11] - e: Read part 16x oversampled Pressure & Temp
 [12] - U: Toggle Warmup cycles on/off
+[13] - Test RSC sensor
 [X] - Quit\033[0;39m
 """
 
@@ -145,7 +162,27 @@ while True:
             #    break
         
         print ("All done, aye!\033[0;39m")
+    
+    if (inputa == "13"):
+        print ("Testing RSC")
+        # 1. Read the ADC settings and the compensation values from EEPROM.
         
+        # 2. Initialize the ADC converter using the settings provided in EEPROM.
+        
+        # 3. Adjust the ADC sample rate if desired.
+        
+        # 4. Command the ADC to take a temperature reading, and store this reading.
+        
+        # 5. Give Delay (Example: if sample rate is 330SPS delay for 3.03 ms [1/330 s]).
+        
+        # 6. Command the ADC to take a pressure reading, and store this reading.
+        
+        # 7. Apply the compensation formulae to the temperature and pressure readings in order to calculate a pressure value.
+        
+        # 8. Repeat steps 4, 5 and 6 in a loop to take additional readings
+        
+        print ("All done!")
+    
     if (inputa == "X" or inputa == "x" or inputa == "Q" or inputa == "q"):
         print ("Bye-bye!")
         quit()
