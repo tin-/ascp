@@ -75,19 +75,9 @@ class ASC_DLHR(object):
     def write_cmd(self, cmd):
         if cfg.get('main', 'if_debug', 1) == 'false':
             bus.write_i2c_block_data(ASC_DLHR_I2CADDR, cmd, [0x00, 0x00])
-            #self._device.writeRaw8(self.dcmd)
-            time.sleep(0.01)
-            
-            #bus.write_byte(ASC_DLHR_I2CADDR, 0)
-            #self._device.writeRaw8(0x00)
-            #time.sleep(0.01)
-	    
-            #bus.write_byte(ASC_DLHR_I2CADDR, 0)
-            #self._device.writeRaw8(0x00)
-            #time.sleep(0.01)
+            time.sleep(0.1)
 	if cfg.get('main', 'if_debug', 1) == 'true':
 	    print "\033[31;1mDebug mode only, command = %X\033[0;39m" % cmd,
-        time.sleep(0.2)
         return 1
 
     def chk_busy(self):
@@ -100,7 +90,6 @@ class ASC_DLHR(object):
         if (Status & ASC_DLHR_STS_BUSY):
             print "\033[31;1m\r\nPower On status not set!\033[0;39m",
             return 1 # sensor is busy
-        time.sleep(0.2)
         return 0     # sensor is ready
         
     def read_sensor(self):
@@ -108,12 +97,12 @@ class ASC_DLHR(object):
     
         #// wait for completion
         #while (LOW == digitalRead(EOCPIN))
-        time.sleep(1)
+        time.sleep(0.04)
         self.retry_num = 5
         while self.retry_num > 0:
             if self.chk_busy():
                 print "\033[31;1m\r\nSensor is busy!\033[0;39m",
-                time.sleep(0.05)                       # Sleep for 100ms
+                time.sleep(0.01)                       # Sleep for 100ms
             else:
                 self.retry_num = 0
             self.retry_num = self.retry_num - 1
@@ -169,14 +158,17 @@ class ASC_DLHR(object):
         fPress *= 100.0
     
         print "Status: 0x%X " % StatusByte,
-        print "Pressure: %4.5f %%FSS " % fPress,
-        print "Temperature: %3.2f 'C " % fTemp,
+        print "\033[35;1mPressure: %4.5f %%FSS \033[33;1m Counts: %d " % (fPress, (outb[1] <<16) + (outb[2]<<8) + (outb[3]) ),
+        print "\033[36;1mTemperature: %3.3f 'C \033[39;0m" % fTemp
+	
+	with open('asc_dlhr.dsv', 'ab') as o:
+	    o.write (time.strftime("%d/%m/%Y-%H:%M:%S;")+('%4.5f;%3.3f;\r\n' % (fPress, fTemp)))
         
-        print " 0x%04X %04X %04X " % (outb[1], outb[2], outb[3]),
+        #print " 0x%X%X%X " % (outb[1], outb[2], outb[3]),
         
-        Tmp = outb[4] << 16;
-        Tmp += outb[5] << 8;
-        Tmp += outb[6];
+        #Tmp = outb[4] << 16;
+        #Tmp += outb[5] << 8;
+        #Tmp += outb[6];
         
-        print " %X " % Tmp
+        #print " %X " % Tmp
         return 0
