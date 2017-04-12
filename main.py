@@ -134,9 +134,9 @@ while True:
         DoReads = 0
         print "Reading sensor. Press any key to abort"
         while DoReads != 1:
-            sensor.write_cmd(ASC_DLHR_AVG2_READ_CMD)
+            sensor.write_cmd(ASC_DLHR_AVG16_READ_CMD)
+            time.sleep(0.166666)
             sensor.read_sensor()
-            time.sleep(0.05)
             DoReads = 0
             
             #data = GetChar()
