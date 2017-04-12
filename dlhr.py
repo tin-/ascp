@@ -126,14 +126,15 @@ class ASC_DLHR(object):
             #outb[3] = self._device.readRaw8()     # Receive Temp 3 data byte
             #outb[4] = self._device.readRaw8()     # Receive Temp 2 data byte
             #outb[5] = self._device.readRaw8()     # Receive Temp 1 data byte
-    	    StatusByte = bus.read_byte(ASC_DLHR_I2CADDR)
-	    outb[0] = bus.read_byte(ASC_DLHR_I2CADDR)
-	    outb[1] = bus.read_byte(ASC_DLHR_I2CADDR)
-	    outb[2] = bus.read_byte(ASC_DLHR_I2CADDR)
-	    outb[3] = bus.read_byte(ASC_DLHR_I2CADDR)
-	    outb[4] = bus.read_byte(ASC_DLHR_I2CADDR)
-	    outb[5] = bus.read_byte(ASC_DLHR_I2CADDR)
-	    print outb # outb = bus.read_i2c_block_data(ASC_DLHR_I2CADDR, 0, 6)
+    	    #StatusByte = bus.read_byte(ASC_DLHR_I2CADDR)
+	    #outb[0] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    #outb[1] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    #outb[2] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    #outb[3] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    #outb[4] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    #outb[5] = bus.read_byte(ASC_DLHR_I2CADDR)
+	    outb = bus.read_i2c_block_data(ASC_DLHR_I2CADDR, 0, 7)
+            StatusByte = outb[0]
 
         if cfg.get('main', 'if_debug', 1) == 'true':
             StatusByte = 0xFF
@@ -156,13 +157,13 @@ class ASC_DLHR(object):
             quit()
             
         # Ccnvert Temperature data to degrees C:
-        Tmp = outb[3] << 8
-        Tmp += outb[4]
+        Tmp = outb[4] << 8
+        Tmp += outb[5]
         fTemp = float(Tmp)
         fTemp = (fTemp/65535.0) * 125.0 - 40.0
         
         # Convert Pressure to %Full Scale Span ( +/- 100%)
-        Prs = (outb[0] <<16) + (outb[1]<<8) + (outb[2])
+        Prs = (outb[1] <<16) + (outb[2]<<8) + (outb[3])
         Prs -= 0x7FFFFF
         fPress = (float(Prs))/(float(0x800000))
         fPress *= 100.0
@@ -171,11 +172,11 @@ class ASC_DLHR(object):
         print "Pressure: %4.5f %%FSS " % fPress,
         print "Temperature: %3.2f 'C " % fTemp,
         
-        print " 0x%04X %04X %04X " % (outb[0], outb[1], outb[2]),
+        print " 0x%04X %04X %04X " % (outb[1], outb[2], outb[3]),
         
-        Tmp = outb[3] << 16;
-        Tmp += outb[4] << 8;
-        Tmp += outb[5];
+        Tmp = outb[4] << 16;
+        Tmp += outb[5] << 8;
+        Tmp += outb[6];
         
         print " %X " % Tmp
         return 0
