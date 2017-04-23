@@ -42,7 +42,7 @@ if cfg.get('main', 'interface', 1) == 'spi':
         print ("RSC sensor used")
 	#from rsc import *
         sensorrs = imp.load_source('rsc', 'rsc.py')
-        sensorrsc = sensorrs.HRSC(mode=HRSC)
+        sensorrsc = sensorrs.HRSC()
     if cfg.get('dut', 'dut', 1) == 'all':
         # ASC DLHR sensor with SPI interface
         print ("Both sensors used")
@@ -168,18 +168,17 @@ while True:
     
     if (inputa == "13"):
         print ("Testing RSC")
-        # 1. Read the ADC settings and the compensation values from EEPROM.
-        #sensor.sensor_info()
-        # 2. Initialize the ADC converter using the settings provided in EEPROM.
-        
-        # 3. Adjust the ADC sample rate if desired.
-        
-        # 4. Command the ADC to take a temperature reading, and store this reading.
-        
+        print "1. Read the ADC settings and the compensation values from EEPROM."
+        sensorrsc.sensor_info()
+        print "2. Initialize the ADC converter using the settings provided in EEPROM."
+        sensorrsc.adc_configure()
+        print "3. Adjust the ADC sample rate if desired."
+	sensorrsc.set_speed(20) #in SPS
+        print "4. Command the ADC to take a temperature reading, and store this reading."
+	sensorrsc.read_temp()
         # 5. Give Delay (Example: if sample rate is 330SPS delay for 3.03 ms [1/330 s]).
-        
-        # 6. Command the ADC to take a pressure reading, and store this reading.
-        
+        print "6. Command the ADC to take a pressure reading, and store this reading."
+        sensorrsc.read_pressure()
         # 7. Apply the compensation formulae to the temperature and pressure readings in order to calculate a pressure value.
         
         # 8. Repeat steps 4, 5 and 6 in a loop to take additional readings

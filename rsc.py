@@ -47,6 +47,7 @@ HRSC_STS_ALUERR        = 0b00000001
 HRSC_EAD_EEPROM_LSB    = 0x03
 HRSC_EAD_EEPROM_MSB    = 0x0B
 HRSC_ADC_WREG          = 0x40 
+HRSC_ADC_RESET         = 0x06
 
 # HRSC ROM values
 sensor_rom = [0] * 512          # 512 bytes of EEPROM
@@ -62,28 +63,32 @@ Pcomp_fs = 0.0                  # Compensated output pressure
 Pcomp    = 0.0                  # Compensated output pressure, in units
 
 
-if cfg.get('main', 'if_debug', 1) == 'false':
-    if cfg.get('main', 'interface', 1) == 'i2c':
-        raise ValueError ('I2C interface not supported, change to SPI')
-    if cfg.get('main', 'interface', 1) == 'spi':
-        import spidev
-        spi = spidev.SpiDev()
-	spi.mode = 0b00
-
 try:
     import RPi.GPIO as GPIO
 except RuntimeError:
     print("Error importing RPi.GPIO!  This is probably because you need superuser privileges.  You can achieve this by using 'sudo' to run your script")
 
-print GPIO.RPI_INFO
+GPIO.setmode(GPIO.BOARD)
+GPIO.setup(7, GPIO.IN)
+
+print "Running on   : %s" % GPIO.RPI_INFO['TYPE']
+print "Processor    : %s" % GPIO.RPI_INFO['PROCESSOR']
+print "Revision     : %s" % GPIO.RPI_INFO['REVISION']
+print "Manufacturer : %s" % GPIO.RPI_INFO['MANUFACTURER']
+
+import spidev
+spi = spidev.SpiDev()
+spi.open(0, 1)
+spi.mode = 0b00
+spi.close()
+spi.open(0, 0)
+spi.mode = 0b01
+spi.close()
 
 class HRSC(object):
-    def __init__(self, mode=HRSC, i2c=None, **kwargs):
+    def __init__(self, i2c=None, **kwargs):
         self._logger = logging.getLogger('Adafruit_BMP.BMP085')
-        # Check that mode is valid.
-	self._mode = mode
         # Create device.
-	global bus
 	print ("TEST")
                         
 	self.read_eeprom()
@@ -95,58 +100,170 @@ class HRSC(object):
         print "Loading EEPROM data from sensor",
         print ".",
         # Assert EEPROM SS to L, Deassert ADC SS to H, Set mode 0 or mode 4
-        spi.mode = 0b00
-	spi.open(0, 1)
-	for i in range (0,41):
+        spi.open(0, 1)
+	spi.mode = 0b00
+	for i in range (0,255):
 	    sensor_rom[i] = spi.xfer([HRSC_EAD_EEPROM_LSB, i, 0x00], 100000)[2] # Read low page
-	    print "%c" % (sensor_rom[i]),
-#	for i in range (0,255):
-#    	    spi.open(0, 1)
-#    	    sensor_rom[i+256] = spi.xfer2([HRSC_EAD_EEPROM_MSB, i, 0x00], 100000) # Read high page
+#	    print "%c" % (sensor_rom[i]),
+	for i in range (0,255):
+    	    sensor_rom[i+256] = spi.xfer([HRSC_EAD_EEPROM_MSB, i, 0x00], 100000)[2] # Read high page
 	# Clear EEPROM SS , set mode 1 for ADC
         spi.close()
-	print "TEST"
-        print sensor_rom[0:16][2],
-    	print " OK"
         return 0
         
     def adc_configure(self):
         # Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
-        spi.mode = 0b01
-	spi.open(0,0)
+	spi.open(0, 1)
+        spi.mode = 1
 	self.bytewr = 3
         self.regaddr = 0
-        
+
         # Reset command
-        spi.xfer(HRSC_ADC_RESET)
-        # Write configuration registers from ROM
-        spi.xfer([HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, sensor_rom[61], sensor_rom[63], sensor_rom[65], sensor_rom[67] ])
+        test = spi.xfer([HRSC_ADC_RESET], 10000)
+	# Write configuration registers from ROM
+	print ("%02X" % sensor_rom[61]),
+	print ("%02X" % sensor_rom[63]),
+	print ("%02X" % sensor_rom[65]),
+	print ("%02X" % sensor_rom[67]),
+        test = spi.xfer([HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, sensor_rom[61], sensor_rom[63], sensor_rom[65], sensor_rom[67] ], 10000)
         
 	spi.close()
         return 1
+
+
+    def conv_to_float(self, byte1, byte2, byte3, byte4):
+        import struct
+	temp = struct.pack("BBBB", byte1,byte2,byte3,byte4)
+	output = struct.unpack("<f", temp)[0]
+        return output
+
+    def conv_to_short(self, byte1, byte2):
+        import struct
+	temp = struct.pack("BB", byte1,byte2)
+	output = struct.unpack("<H", temp)[0]
+        return output
+
     
     def sensor_info(self):
         # Check for correct status
-        print "Catalog listing = %s" % sensor_rom[0:16]
-        print "Serial number   = %s" % sensor_rom[17:27]
-        print "Pressure range  = %f" % float(sensor_rom[28:31])
-        print "Pressure min    = %f" % float(sensor_rom[32:35])
-        print "Pressure units  = %s" % sensor_rom[36:40]
-        print "Pressure ref    = %s" % sensor_rom[41]
-        print "Checksum        = %X" % int(sensor_rom[451:452])
-        return 1
+        print "\033[0;32mCatalog listing : %s" % str(bytearray(sensor_rom[0:16]))
+        print "Serial number   : %s" % str(bytearray(sensor_rom[16:27]))
+        print "Pressure range  :",
+        b = self.conv_to_float(sensor_rom[27], sensor_rom[28], sensor_rom[29], sensor_rom[30])
+	print b,sensor_rom[27:31]
+        print "Pressure min    :",
+	b = self.conv_to_float(sensor_rom[31], sensor_rom[32], sensor_rom[33], sensor_rom[34])
+	print b,sensor_rom[31:35]
+                
+	print "Pressure units  : %s" % str(bytearray(sensor_rom[35:40]))
+        print "Pressure ref    :",
+	if (sensor_rom[40] == 68):
+	    print "Differential"
+        print "Checksum        :",
+	b = self.conv_to_short(sensor_rom[450], sensor_rom[451])
+	print b,sensor_rom[450:452]
+        print "\033[0;39m"
+	return 1
     
     def calibrate(self):
         return 1
     
     def set_speed(self, speed):
+	# Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
+	spi.open(0, 1)
+        spi.mode = 1
+	self.bytewr = 0
+        self.regaddr = 1
+
+	if (speed == 20):
+	    reg_dr = 0
+	elif (speed == 45):
+	    reg_dr = 1
+	elif (speed == 90):
+	    reg_dr = 2
+	elif (speed == 145):
+	    reg_dr = 3
+	reg_mode = 0 # 256kHz modulator
+	reg_sensor = 0 # pressure
+	self.reg_wr = (reg_dr << 5) | (reg_mode << 3) | (1 << 2) | (reg_sensor << 1) | 0b00
+	# Write configuration register
+	print ("\033[0;35mADC config %02X : %02X\033[0;39m" % (self.regaddr, HRSC_ADC_WREG|self.reg_wr))
+        test = spi.xfer([HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, self.reg_wr, self.reg_wr, self.reg_wr ], 10000)
+        print test
+
+	spi.close()
         return 1
+
     
     def read_temp(self):
-        return 1
+        # Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
+	spi.open(0, 1)
+        spi.mode = 1
+	self.bytewr = 0
+        self.regaddr = 1
+
+	reg_dr = 0
+	reg_mode = 0 # 256kHz modulator
+	reg_sensor = 1 # temperature
+	self.reg_wr = (reg_dr << 5) | (reg_mode << 3) | (1 << 2) | (reg_sensor << 1) | 0b00
+	# Write configuration register
+	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (self.regaddr, HRSC_ADC_WREG|self.reg_wr))
+        test = spi.xfer([0x00, HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, self.reg_wr, self.reg_wr ], 10000)
+
+	spi.close()
+        spi.open(0, 1)
+        spi.mode = 1
+	
+	time.sleep(1)
+	adc_data = spi.xfer([0xff, 0xff, 0xff, 0xff], 10000)
+	temp_data = (adc_data[0]<<8|adc_data[1]) & 0x7ff
+	print "%04X" % temp_data
+        time.sleep(1)
+	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
+	temp_data = (adc_data[0]<<8|adc_data[1]) & 0x7ff
+	print "%04X" % temp_data
+        time.sleep(1)
+	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
+	temp_data = (adc_data[0]<<8|adc_data[1]) & 0x7ff
+	print "%04X" % temp_data
+        time.sleep(1)
+	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
+	temp_data = (adc_data[0]<<8|adc_data[1]) & 0x7ff
+	print "%04X" % temp_data
+        
+	spi.close()
+	return 1
         
     def read_pressure(self):
-        return 1
+        # Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
+	spi.open(0, 1)
+        spi.mode = 1
+	self.bytewr = 0
+        self.regaddr = 1
+
+	reg_dr = 0
+	reg_mode = 0 # 256kHz modulator
+	reg_sensor = 0 # pressure
+	self.reg_wr = (reg_dr << 5) | (reg_mode << 3) | (1 << 2) | (reg_sensor << 1) | 0b00
+	# Write configuration register
+	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (self.regaddr, HRSC_ADC_WREG|self.reg_wr))
+        test = spi.xfer([0x00, HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, self.reg_wr, self.reg_wr ], 10000)
+
+        time.sleep(1)
+	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
+	print adc_data
+        time.sleep(1)
+	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
+	print adc_data
+        time.sleep(1)
+	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
+	print adc_data
+        time.sleep(1)
+	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
+	print adc_data
+
+	spi.close()
+	return 1
         
     def comp_readings(self):
         return 1
