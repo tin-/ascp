@@ -33,17 +33,20 @@ if cfg.get('main', 'interface', 1) == 'i2c':
 if cfg.get('main', 'interface', 1) == 'spi':
     if cfg.get('dut', 'dut', 1) == 'asc_dlhr':
         # ASC DLHR sensor with SPI interface
-        from dlhr import *
+        print ("ASC sensor used")
+	from dlhr import *
         sensorhw = imp.load_source('dlhr', 'dlhr.py')
         sensor = sensorhw.ASC_DLHR(mode=ASC_DLHR_I2CADDR)
     if cfg.get('dut', 'dut', 1) == 'rsc':
-        # ASC DLHR sensor with SPI interface
-        from rsc import *
-        sensorhw = imp.load_source('rsc', 'rsc.py')
-        sensor = sensorhw.HRSC(mode=HRSC)
+        # RSC sensor with SPI interface
+        print ("RSC sensor used")
+	#from rsc import *
+        sensorrs = imp.load_source('rsc', 'rsc.py')
+        sensorrsc = sensorrs.HRSC(mode=HRSC)
     if cfg.get('dut', 'dut', 1) == 'all':
         # ASC DLHR sensor with SPI interface
-        from dlhr import *
+        print ("Both sensors used")
+	from dlhr import *
         from rsc import *
         sensorhw = imp.load_source('dlhr', 'dlhr.py')
         sensor = sensorhw.ASC_DLHR(mode=ASC_DLHR_I2CADDR)
@@ -166,7 +169,7 @@ while True:
     if (inputa == "13"):
         print ("Testing RSC")
         # 1. Read the ADC settings and the compensation values from EEPROM.
-        
+        #sensor.sensor_info()
         # 2. Initialize the ADC converter using the settings provided in EEPROM.
         
         # 3. Adjust the ADC sample rate if desired.

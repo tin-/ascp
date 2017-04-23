@@ -61,21 +61,32 @@ Pint2    = 0.0                  # Intermediate value 2
 Pcomp_fs = 0.0                  # Compensated output pressure 
 Pcomp    = 0.0                  # Compensated output pressure, in units
 
-global bus
+
+if cfg.get('main', 'if_debug', 1) == 'false':
+    if cfg.get('main', 'interface', 1) == 'i2c':
+        raise ValueError ('I2C interface not supported, change to SPI')
+    if cfg.get('main', 'interface', 1) == 'spi':
+        import spidev
+        spi = spidev.SpiDev()
+	spi.mode = 0b00
+
+try:
+    import RPi.GPIO as GPIO
+except RuntimeError:
+    print("Error importing RPi.GPIO!  This is probably because you need superuser privileges.  You can achieve this by using 'sudo' to run your script")
+
+print GPIO.RPI_INFO
 
 class HRSC(object):
-    def __init__(self, **kwargs):
+    def __init__(self, mode=HRSC, i2c=None, **kwargs):
         self._logger = logging.getLogger('Adafruit_BMP.BMP085')
         # Check that mode is valid.
+	self._mode = mode
         # Create device.
-        if cfg.get('main', 'if_debug', 1) == 'false':
-            if cfg.get('main', 'interface', 1) == 'i2c':
-                raise ValueError ('I2C interface not supported, change to SPI')
-            if cfg.get('main', 'interface', 1) == 'spi':
-                import spidev
-                spi = spidev.SpiDev()
-                spi.open(0,0)
+	global bus
+	print ("TEST")
                         
+	self.read_eeprom()
         # Load calibration values.
         #self._load_calibration()
         #self.t_fine = 0.0
@@ -84,17 +95,26 @@ class HRSC(object):
         print "Loading EEPROM data from sensor",
         print ".",
         # Assert EEPROM SS to L, Deassert ADC SS to H, Set mode 0 or mode 4
-        for i in range (0,255):
-            sensor_rom[i]     = spi.xfer([HRSC_EAD_EEPROM_LSB, i]) # Read low page
-            sensor_rom[i+256] = spi.xfer([HRSC_EAD_EEPROM_MSB, i]) # Read high page
-        print "..",
-        # Clear EEPROM SS , set mode 1 for ADC
-        print " OK"
+        spi.mode = 0b00
+	spi.open(0, 1)
+	for i in range (0,41):
+	    sensor_rom[i] = spi.xfer([HRSC_EAD_EEPROM_LSB, i, 0x00], 100000)[2] # Read low page
+	    print "%c" % (sensor_rom[i]),
+#	for i in range (0,255):
+#    	    spi.open(0, 1)
+#    	    sensor_rom[i+256] = spi.xfer2([HRSC_EAD_EEPROM_MSB, i, 0x00], 100000) # Read high page
+	# Clear EEPROM SS , set mode 1 for ADC
+        spi.close()
+	print "TEST"
+        print sensor_rom[0:16][2],
+    	print " OK"
         return 0
         
     def adc_configure(self):
         # Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
-        self.bytewr = 3
+        spi.mode = 0b01
+	spi.open(0,0)
+	self.bytewr = 3
         self.regaddr = 0
         
         # Reset command
@@ -102,6 +122,7 @@ class HRSC(object):
         # Write configuration registers from ROM
         spi.xfer([HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, sensor_rom[61], sensor_rom[63], sensor_rom[65], sensor_rom[67] ])
         
+	spi.close()
         return 1
     
     def sensor_info(self):
