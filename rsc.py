@@ -113,19 +113,20 @@ class HRSC(object):
         
     def adc_configure(self):
         # Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
-	spi.open(0, 1)
+	spi.open(0, 0)
         spi.mode = 1
 	self.bytewr = 3
         self.regaddr = 0
 
         # Reset command
         test = spi.xfer([HRSC_ADC_RESET], 10000)
+	time.sleep(1)
 	# Write configuration registers from ROM
 	print ("%02X" % sensor_rom[61]),
 	print ("%02X" % sensor_rom[63]),
 	print ("%02X" % sensor_rom[65]),
 	print ("%02X" % sensor_rom[67]),
-        test = spi.xfer([HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, sensor_rom[61], sensor_rom[63], sensor_rom[65], sensor_rom[67] ], 10000)
+        test = spi.xfer2([HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, sensor_rom[61], sensor_rom[63], sensor_rom[65], sensor_rom[67] ], 10000)
         
 	spi.close()
         return 1
@@ -170,7 +171,7 @@ class HRSC(object):
     
     def set_speed(self, speed):
 	# Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
-	spi.open(0, 1)
+	spi.open(0, 0)
         spi.mode = 1
 	self.bytewr = 0
         self.regaddr = 1
@@ -187,56 +188,63 @@ class HRSC(object):
 	reg_sensor = 0 # pressure
 	self.reg_wr = (reg_dr << 5) | (reg_mode << 3) | (1 << 2) | (reg_sensor << 1) | 0b00
 	# Write configuration register
-	print ("\033[0;35mADC config %02X : %02X\033[0;39m" % (self.regaddr, HRSC_ADC_WREG|self.reg_wr))
-        test = spi.xfer([HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, self.reg_wr, self.reg_wr, self.reg_wr ], 10000)
+	command = HRSC_ADC_WREG|(self.regaddr << 2)|(self.bytewr & 0x03)
+	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (command, self.reg_wr))
+        test = spi.xfer([command, self.reg_wr], 10000)
         print test
 
 	spi.close()
         return 1
 
+    def convert_temp(self, raw_temp):
+	raw = (raw_temp & 0xFFFF00) >> 10
+	if (raw & 0x2000):
+	    #print "MSB is 1, negative temp"
+	    raw = (0x3fff - (raw - 1))
+	    temp = -(float(raw) * 0.03125)
+	else:
+	    #print "MSB is 0, positive temp"
+	    temp = (float(raw) * 0.03125)
+        print "RAW: %s %s , %f" % (hex(raw_temp), hex(raw), temp )
+	with open('rsc_temp.dsv', 'ab') as o:
+	    o.write (time.strftime("%d/%m/%Y-%H:%M:%S;")+('%4.5f;%3.3f;\r\n' % (0.0, temp)))
+	return temp
     
     def read_temp(self):
         # Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
-	spi.open(0, 1)
+	spi.open(0, 0)
         spi.mode = 1
 	self.bytewr = 0
         self.regaddr = 1
+	spi.max_speed_hz = 10000
 
 	reg_dr = 0
 	reg_mode = 0 # 256kHz modulator
 	reg_sensor = 1 # temperature
 	self.reg_wr = (reg_dr << 5) | (reg_mode << 3) | (1 << 2) | (reg_sensor << 1) | 0b00
 	# Write configuration register
-	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (self.regaddr, HRSC_ADC_WREG|self.reg_wr))
-        test = spi.xfer([0x00, HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, self.reg_wr, self.reg_wr ], 10000)
+	command = HRSC_ADC_WREG|(self.regaddr << 2)|(self.bytewr & 0x03)
+	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (command, self.reg_wr))
+        test = spi.xfer([command, self.reg_wr], 10000)
 
-	spi.close()
-        spi.open(0, 1)
-        spi.mode = 1
-	
-	time.sleep(1)
-	adc_data = spi.xfer([0xff, 0xff, 0xff, 0xff], 10000)
-	temp_data = (adc_data[0]<<8|adc_data[1]) & 0x7ff
-	print "%04X" % temp_data
-        time.sleep(1)
-	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
-	temp_data = (adc_data[0]<<8|adc_data[1]) & 0x7ff
-	print "%04X" % temp_data
-        time.sleep(1)
-	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
-	temp_data = (adc_data[0]<<8|adc_data[1]) & 0x7ff
-	print "%04X" % temp_data
-        time.sleep(1)
-	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
-	temp_data = (adc_data[0]<<8|adc_data[1]) & 0x7ff
-	print "%04X" % temp_data
-        
+	twait = 0.066
+
+	with open('rsc_temp.dsv', 'wb') as o:
+	    o.write ("date;press;temp;\r\n")
+
+	while(1):
+    	    time.sleep(twait)
+	    adc_data = spi.xfer([0,0,command, self.reg_wr], 10000)
+	    #print "RDATA = ",
+	    #print adc_data
+	    temp_data = (adc_data[0]<<16|adc_data[1]<<8|adc_data[2])
+	    self.convert_temp(temp_data)
 	spi.close()
 	return 1
         
     def read_pressure(self):
         # Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
-	spi.open(0, 1)
+	spi.open(0, 0)
         spi.mode = 1
 	self.bytewr = 0
         self.regaddr = 1
