@@ -208,7 +208,8 @@ class HRSC(object):
 	else:
 	    #print "MSB is 0, positive temp"
 	    temp = (float(raw) * 0.03125)
-        print "RAW: %s %s , %4.3f" % (hex(raw_temp), hex(raw), temp )
+	if cfg.get('main', 'verbose', 1) == 'true':
+            print "RAW: %s %s , %4.3f" % (hex(raw_temp), hex(raw), temp )
 #	with open('rsc_temp.dsv', 'ab') as o:
 #	    o.write (time.strftime("%d/%m/%Y-%H:%M:%S;")+('%4.5f;%3.3f;\r\n' % (0.0, temp)))
 	return temp
@@ -227,7 +228,8 @@ class HRSC(object):
 	self.reg_wr = (reg_dr << 5) | (reg_mode << 3) | (1 << 2) | (reg_sensor << 1) | 0b00
 	# Write configuration register
 	command = HRSC_ADC_WREG|(self.regaddr << 2)|(self.bytewr & 0x03)
-	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (command, self.reg_wr))
+	if cfg.get('main', 'verbose', 1) == 'true':
+	    print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (command, self.reg_wr))
         test = spi.xfer([command, self.reg_wr], 10000)
 
 	twait = 0.066
@@ -265,15 +267,18 @@ class HRSC(object):
 	self.reg_wr = (reg_dr << 5) | (reg_mode << 3) | (1 << 2) | (reg_sensor << 1) | 0b00
 	# Write configuration register
 	command = HRSC_ADC_WREG|(self.regaddr << 2)|(self.bytewr & 0x03)
-	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (command, self.reg_wr))
+	if cfg.get('main', 'verbose', 1) == 'true':
+	    print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (command, self.reg_wr))
         test = spi.xfer([command, self.reg_wr], 10000)
 
 	#while(1):
         time.sleep(1)
     	adc_data = spi.xfer([0,0, command, self.reg_wr], 10000)
-    	print hex(adc_data[0]),hex(adc_data[1]),hex(adc_data[2]),
+	if cfg.get('main', 'verbose', 1) == 'true':
+    	    print hex(adc_data[0]),hex(adc_data[1]),hex(adc_data[2]),
 	press = (self.twos_complement(adc_data)) # 24-bit 2's complement math
-	print float(press) / pow(2,23)
+	if cfg.get('main', 'verbose', 1) == 'true':
+	    print float(press) / pow(2,23)
 
 	spi.close()
 	#return (float(press) / pow(2,23))

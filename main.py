@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 import imp
 import sys
+import os
 import time
 import ConfigParser
 from bme280 import *
@@ -54,7 +55,14 @@ if cfg.get('main', 'interface', 1) == 'spi':
         sensorasc = sensorhw.ASC_DLHR(mode=ASC_DLHR_I2CADDR)
         sensorhws = imp.load_source('rsc', 'rsc.py')
         sensorrsc = sensorhws.HRSC(mode=HRSC)
-    
+
+tecsmu = imp.load_source('tecm', 'k2510.py')
+smu = tecsmu.tec_meter(25,0.0,"2510") # GPIB 25
+
+tec_temp = 23.00
+smu.deduct_tmp(tec_temp)
+tec_rtd, tec_curr = smu.get_data()
+
 
 menu = """\033[1;32m[0] - Help guide
 [1] - Detect instruments
@@ -105,7 +113,7 @@ fileName = cfg.get('main', 'raw_data_filelog', 1)
 def create_local_file(fileName):
     if (os.path.isfile(fileName) == False):
         with open(fileName, 'a') as o1:
-            o1.write("date;asc_press;asc_temp;rsc_press;rsc_temp;bme_temp;bme_press;bme_rh;tec_box;\r\n")
+            o1.write("date;asc_press;asc_temp;rsc_press;rsc_temp;bme_temp;bme_press;bme_rh;tec_box;tec_temp;\r\n")
             print ("file %s does not exist\r\n" % fileName) 
     else: 
         print ("file %s exists\r\n" % fileName)
@@ -228,22 +236,62 @@ while True:
 	#sensorrsc.set_speed(20) #in SPS
 	#sensorrsc.comp_readings(10,10)
 
-	cnt = 0
-	with open(fileName, 'a') as o1:
+	enable_start = 0
+	enable_hold = 0
+	reverse_dir = 0
+
+	create_local_file(fileName)
+
+	cnt = -20000
+	while cnt <= 200000:
+	    global tec_temp
+	    time.sleep(1)
+	    if ( (cnt >= 100) and (enable_start == 0) ):
+	        enable_start = 1
+    		cnt = 0
+
+	    if (enable_start == 1):
+    		if (tec_temp >= 52.0 and reverse_dir == 0):
+    	    	    reverse_dir = 1
+	    	    cnt = 60000
+
+    	    if ( (cnt > 0) and ((cnt % 100) == 0) and (reverse_dir == 0) ):
+        	tec_temp = 22 + ((float(cnt) / 200)*0.1)
+        	print ("Set TEC Temp = %2.1f" % tec_temp)
+		smu.deduct_tmp(tec_temp)
+
+	    if ( (cnt >= 60000) ):
+    		reverse_dir = 1
+
+	    if (cnt >= 80000 and cnt <= 14000):
+    		if ( (cnt > 0) and ((cnt % 100) == 0) and (reverse_dir == 1) ):
+        	    tec_temp = 52 - ((float(cnt-80000) / 200)*0.1)
+        	    print ("Set TEC Temp = %2.1f" % tec_temp)
+        	    if (cnt >= 0):
+			smu.deduct_tmp(tec_temp)
+
+	    if (cnt >= 160000):
+		#smu.off_temp()
+	        quit()
+		#smu.deduct_tmp(tec_temp)
+
 	    #Read BME280
 	    get_THP()
 	    #Read ASC DLHR
-            sensorasc.write_cmd(ASC_DLHR_AVG16_READ_CMD)
+    	    sensorasc.write_cmd(ASC_DLHR_AVG16_READ_CMD)
 	    asc_press, asc_temp = sensorasc.read_sensor()
 	    #Read HW RSC
 	    rsc_temp = sensorrsc.read_temp()
 	    time.sleep(0.016)
     	    rsc_press = sensorrsc.read_pressure()
+	    #Get K2510 data
+	    tec_rtd, tec_curr = smu.get_data()
 	    
-            cnt = cnt + 1
-	    print ("%8d;%d;%2.3f;%d;%2.3f;%2.3f;%4.2f;%2.2f;tec_box;\r\n" % (cnt, asc_press, asc_temp, rsc_press, rsc_temp, exttemp, rh, hectopascals) )
-            o1.write (time.strftime("%d/%m/%Y-%H:%M:%S;") + ("%d;%2.3f;%d;%2.3f;%2.3f;%4.2f;%2.2f;tec_box;\r\n" % (asc_press, asc_temp, rsc_press, rsc_temp, exttemp, rh, hectopascals) ) )
-	    o1.close()
+	    with open(fileName, 'a') as o1:
+		print ("%8d \033[0;35mASC:%d;%2.3f \033[1;34mRSC:%d;%2.3f \033[0;32mA %2.3f R %4.2f P %2.2f \033[0;33mTEC:%2.3f SV: %2.3f\033[0;39m" % (cnt, asc_press, asc_temp, rsc_press, rsc_temp, exttemp, rh, hectopascals, tec_rtd, tec_temp) )
+        	o1.write (time.strftime("%d/%m/%Y-%H:%M:%S;") + ("%d;%2.3f;%d;%2.3f;%2.3f;%4.2f;%2.2f;%2.3f;%2.3f\r\n" % (asc_press, asc_temp, rsc_press, rsc_temp, exttemp, rh, hectopascals, tec_rtd, tec_temp) ) )
+		o1.close()
+	    cnt = cnt + 1
 
     if (inputa == "X" or inputa == "x" or inputa == "Q" or inputa == "q"):
         print ("Bye-bye!")
