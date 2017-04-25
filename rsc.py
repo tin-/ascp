@@ -76,6 +76,9 @@ print "Processor    : %s" % GPIO.RPI_INFO['PROCESSOR']
 print "Revision     : %s" % GPIO.RPI_INFO['REVISION']
 print "Manufacturer : %s" % GPIO.RPI_INFO['MANUFACTURER']
 
+global tempval
+tempval = 0.0			# Current temperature value
+
 import spidev
 spi = spidev.SpiDev()
 spi.open(0, 1)
@@ -232,16 +235,23 @@ class HRSC(object):
 #	with open('rsc_temp.dsv', 'wb') as o:
 #	    o.write ("date;press;temp;\r\n")
 
-	while(1):
-    	    time.sleep(twait)
-	    adc_data = spi.xfer([0,0,command, self.reg_wr], 10000)
-	    #print "RDATA = ",
-	    #print adc_data
-	    temp_data = (adc_data[0]<<16|adc_data[1]<<8|adc_data[2])
-	    self.convert_temp(temp_data)
+        time.sleep(twait)
+	adc_data = spi.xfer([0,0,command, self.reg_wr], 10000)
+	#print "RDATA = ",
+	#print adc_data
+	temp_data = (adc_data[0]<<16|adc_data[1]<<8|adc_data[2])
+	tempval = self.convert_temp(temp_data)
 	spi.close()
-	return 1
-        
+	return tempval
+
+    def twos_complement(self, byte_arr):
+	a = byte_arr[0]; b = byte_arr[1]; c = byte_arr[2]
+	out = ((a<<16)&0xff0000) | ((b<<8)&0xff00) | (c&0xff)
+	neg = (a & (1<<7) != 0)  # first bit of a is the "signed bit." if it's a 1, then the value is negative
+	if neg: out -= (1 << 24)
+	#print(hex(a), hex(b), hex(c), neg, out)
+	return out
+
     def read_pressure(self):
         # Clear EEPROM SS , assert ADC SS, set mode 1 for ADC
 	spi.open(0, 0)
@@ -250,30 +260,52 @@ class HRSC(object):
         self.regaddr = 1
 
 	reg_dr = 0
-	reg_mode = 0 # 256kHz modulator
-	reg_sensor = 0 # pressure
+	reg_mode = 0   # 256kHz modulator
+	reg_sensor = 0 # Pressure readout
 	self.reg_wr = (reg_dr << 5) | (reg_mode << 3) | (1 << 2) | (reg_sensor << 1) | 0b00
 	# Write configuration register
-	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (self.regaddr, HRSC_ADC_WREG|self.reg_wr))
-        test = spi.xfer([0x00, HRSC_ADC_WREG|self.regaddr << 3|self.bytewr & 0x03, self.reg_wr, self.reg_wr ], 10000)
+	command = HRSC_ADC_WREG|(self.regaddr << 2)|(self.bytewr & 0x03)
+	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (command, self.reg_wr))
+        test = spi.xfer([command, self.reg_wr], 10000)
 
+	#while(1):
         time.sleep(1)
-	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
-	print adc_data
-        time.sleep(1)
-	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
-	print adc_data
-        time.sleep(1)
-	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
-	print adc_data
-        time.sleep(1)
-	adc_data = spi.xfer([0x00, 0x00, 0x00, 0x00], 10000)
-	print adc_data
+    	adc_data = spi.xfer([0,0, command, self.reg_wr], 10000)
+    	print hex(adc_data[0]),hex(adc_data[1]),hex(adc_data[2]),
+	press = (self.twos_complement(adc_data)) # 24-bit 2's complement math
+	print float(press) / pow(2,23)
 
 	spi.close()
-	return 1
+	return (float(press) / pow(2,23))
         
-    def comp_readings(self):
+    def comp_readings(self, raw_pressure, raw_temp):
+	OffsetCoefficient0 = self.conv_to_float(sensor_rom[130], sensor_rom[131], sensor_rom[132], sensor_rom[133])
+	OffsetCoefficient1 = self.conv_to_float(sensor_rom[134], sensor_rom[135], sensor_rom[136], sensor_rom[137])
+	OffsetCoefficient2 = self.conv_to_float(sensor_rom[138], sensor_rom[139], sensor_rom[140], sensor_rom[141])
+	OffsetCoefficient3 = self.conv_to_float(sensor_rom[142], sensor_rom[143], sensor_rom[144], sensor_rom[145])
+	SpanCoefficient0   = self.conv_to_float(sensor_rom[210], sensor_rom[211], sensor_rom[212], sensor_rom[213])
+	SpanCoefficient1   = self.conv_to_float(sensor_rom[214], sensor_rom[215], sensor_rom[216], sensor_rom[217])
+	SpanCoefficient2   = self.conv_to_float(sensor_rom[218], sensor_rom[219], sensor_rom[220], sensor_rom[221])
+	SpanCoefficient3   = self.conv_to_float(sensor_rom[222], sensor_rom[223], sensor_rom[224], sensor_rom[225])
+	ShapeCoefficient0  = self.conv_to_float(sensor_rom[290], sensor_rom[291], sensor_rom[292], sensor_rom[293])
+	ShapeCoefficient1  = self.conv_to_float(sensor_rom[294], sensor_rom[295], sensor_rom[296], sensor_rom[297]) 
+	ShapeCoefficient2  = self.conv_to_float(sensor_rom[298], sensor_rom[299], sensor_rom[300], sensor_rom[301])
+	ShapeCoefficient3  = self.conv_to_float(sensor_rom[302], sensor_rom[303], sensor_rom[304], sensor_rom[305])
+	PRange = self.conv_to_float(sensor_rom[27], sensor_rom[28], sensor_rom[29], sensor_rom[30])
+	Pmin = self.conv_to_float(sensor_rom[31], sensor_rom[32], sensor_rom[33], sensor_rom[34])
+	print "Offsets",OffsetCoefficient0,OffsetCoefficient1,OffsetCoefficient2,OffsetCoefficient3
+	print "Span",SpanCoefficient0,SpanCoefficient1,SpanCoefficient2,SpanCoefficient3
+	print "Shape",ShapeCoefficient0,ShapeCoefficient1,ShapeCoefficient2,ShapeCoefficient3
+
+	Pint1 = self.read_pressure() - (OffsetCoefficient3 * self.read_temp() + OffsetCoefficient2 * self.read_temp() + OffsetCoefficient1 * self.read_temp() + OffsetCoefficient0)
+	print "Pint1", Pint1
+	Pint2 = Pint1 / (SpanCoefficient3 * self.read_temp() + SpanCoefficient2 * self.read_temp() + SpanCoefficient1 * self.read_temp() + SpanCoefficient0)
+	print "Pint2", Pint2
+	PComp_FS = ShapeCoefficient3 * Pint2 + ShapeCoefficient2 * Pint2 + ShapeCoefficient1 * Pint2 + ShapeCoefficient0
+	print "PComp_FS", PComp_FS
+	PComp = (PComp_FS * PRange) + Pmin #[Engineering Units]
+	print "PComp = ", PComp
+
         return 1
     
     def read_sensor(self):
