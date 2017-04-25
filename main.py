@@ -22,6 +22,7 @@
 # THE SOFTWARE.
 import imp
 import sys
+import time
 import ConfigParser
 
 cfg = ConfigParser.ConfigParser()
@@ -176,11 +177,12 @@ while True:
 	#sensorrsc.set_speed(20) #in SPS
         print "4. Command the ADC to take a temperature reading, and store this reading."
 	sensorrsc.read_temp()
-        # 5. Give Delay (Example: if sample rate is 330SPS delay for 3.03 ms [1/330 s]).
+        print "5. Give Delay (Example: if sample rate is 330SPS delay for 3.03 ms [1/330 s])."
+	time.sleep(0.004)
         print "6. Command the ADC to take a pressure reading, and store this reading."
-        #sensorrsc.read_pressure()
+        sensorrsc.read_pressure()
         # 7. Apply the compensation formulae to the temperature and pressure readings in order to calculate a pressure value.
-        
+	sensorrsc.comp_readings(10,10)
         # 8. Repeat steps 4, 5 and 6 in a loop to take additional readings
         
         print ("All done!")
