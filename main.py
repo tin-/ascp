@@ -24,6 +24,7 @@ import imp
 import sys
 import time
 import ConfigParser
+from bme280 import *
 
 cfg = ConfigParser.ConfigParser()
 cfg.read('pressure.conf')
@@ -50,9 +51,9 @@ if cfg.get('main', 'interface', 1) == 'spi':
 	from dlhr import *
         from rsc import *
         sensorhw = imp.load_source('dlhr', 'dlhr.py')
-        sensor = sensorhw.ASC_DLHR(mode=ASC_DLHR_I2CADDR)
+        sensorasc = sensorhw.ASC_DLHR(mode=ASC_DLHR_I2CADDR)
         sensorhws = imp.load_source('rsc', 'rsc.py')
-        sensor2 = sensorhws.HRSC(mode=HRSC)
+        sensorrsc = sensorhws.HRSC(mode=HRSC)
     
 
 menu = """\033[1;32m[0] - Help guide
@@ -69,6 +70,7 @@ menu = """\033[1;32m[0] - Help guide
 [11] - e: Read part 16x oversampled Pressure & Temp
 [12] - U: Toggle Warmup cycles on/off
 [13] - Test RSC sensor
+[14] - Log all sensors
 [X] - Quit\033[0;39m
 """
 
@@ -76,6 +78,37 @@ help = """\033[0;44m
 This is help! Very good help!
 To know more - visit https://xdevs.com site\033[0;39m
 """
+
+exttemp = 25.0
+rh = 50.0
+pascals = 100000.00
+hectopascals = 1000.00
+
+# Read Temperature, Humidity, and Barometric Pressure from BME280
+def get_THP():
+    global exttemp
+    global rh
+    global pascals
+    global hectopascals
+    exttemp = sensor.read_temperature()
+    rh = sensor.read_humidity()
+    pascals = sensor.read_pressure()
+    hectopascals = pascals / 100
+
+#Setup temp/humidity/pressure sensor BME280
+# OSAMPLE = oversampling mode
+sensor = BME280(mode=BME280_OSAMPLE_8)
+get_THP() # Read Temp, RH, Pressure from sensor
+
+fileName = cfg.get('main', 'raw_data_filelog', 1)
+# Check if file exists, if not create it and add header
+def create_local_file(fileName):
+    if (os.path.isfile(fileName) == False):
+        with open(fileName, 'a') as o1:
+            o1.write("date;asc_press;asc_temp;rsc_press;rsc_temp;bme_temp;bme_press;bme_rh;tec_box;\r\n")
+            print ("file %s does not exist\r\n" % fileName) 
+    else: 
+        print ("file %s exists\r\n" % fileName)
 
 sys.stdout.write("\033[0;36m  Pressure sensors toolkit CLI \r\n  Using NI GPIB adapter and linux-gpib library \r\n\033[0;41m Target platform: Raspberry Pi B 3+\033[0;39m\r\n")
 
@@ -122,32 +155,32 @@ while True:
 
     if (inputa == "7"):
         print ("Reading sensor Pressure/temp..\033[0;49m")
-        sensor.write_cmd(ASC_DLHR_SINGLE_READ_CMD)
-        sensor.read_sensor()
+        sensorasc.write_cmd(ASC_DLHR_SINGLE_READ_CMD)
+        sensorasc.read_sensor()
         print ("All done, aye!\033[0;39m")
 
     if (inputa == "8"):
         print ("Reading AVG2 sensor Pressure/temp..\033[0;49m")
-        sensor.write_cmd(ASC_DLHR_AVG2_READ_CMD)
-        sensor.read_sensor()
+        sensorasc.write_cmd(ASC_DLHR_AVG2_READ_CMD)
+        sensorasc.read_sensor()
         print ("All done, aye!\033[0;39m")
 
     if (inputa == "9"):
         print ("Reading AVG4 sensor Pressure/temp..\033[0;49m")
-        sensor.write_cmd(ASC_DLHR_AVG4_READ_CMD)
-        sensor.read_sensor()
+        sensorasc.write_cmd(ASC_DLHR_AVG4_READ_CMD)
+        sensorasc.read_sensor()
         print ("All done, aye!\033[0;39m")
 
     if (inputa == "10"):
         print ("Reading AVG8 sensor Pressure/temp..\033[0;49m")
-        sensor.write_cmd(ASC_DLHR_AVG8_READ_CMD)
-        sensor.read_sensor()
+        sensorasc.write_cmd(ASC_DLHR_AVG8_READ_CMD)
+        sensorasc.read_sensor()
         print ("All done, aye!\033[0;39m")
 
     if (inputa == "11"):
         print ("Reading AVG16 sensor Pressure/temp..\033[0;49m")
-        sensor.write_cmd(ASC_DLHR_AVG16_READ_CMD)
-        sensor.read_sensor()
+        sensorasc.write_cmd(ASC_DLHR_AVG16_READ_CMD)
+        sensorasc.read_sensor()
         print ("All done, aye!\033[0;39m")
 
     if (inputa == "12"):
@@ -155,9 +188,9 @@ while True:
         DoReads = 0
         print "Reading sensor. Press any key to abort"
         while DoReads != 1:
-            sensor.write_cmd(ASC_DLHR_AVG16_READ_CMD)
+            sensorasc.write_cmd(ASC_DLHR_AVG16_READ_CMD)
             time.sleep(0.166666)
-            sensor.read_sensor()
+            sensorasc.read_sensor()
             DoReads = 0
             
             #data = GetChar()
@@ -186,7 +219,32 @@ while True:
         # 8. Repeat steps 4, 5 and 6 in a loop to take additional readings
         
         print ("All done!")
-    
+
+    if (inputa == "14"):
+	print "Logging start.."
+
+        sensorrsc.sensor_info()
+        sensorrsc.adc_configure()
+	#sensorrsc.set_speed(20) #in SPS
+	#sensorrsc.comp_readings(10,10)
+
+	cnt = 0
+	with open(fileName, 'a') as o1:
+	    #Read BME280
+	    get_THP()
+	    #Read ASC DLHR
+            sensorasc.write_cmd(ASC_DLHR_AVG16_READ_CMD)
+	    asc_press, asc_temp = sensorasc.read_sensor()
+	    #Read HW RSC
+	    rsc_temp = sensorrsc.read_temp()
+	    time.sleep(0.016)
+    	    rsc_press = sensorrsc.read_pressure()
+	    
+            cnt = cnt + 1
+	    print ("%8d;%d;%2.3f;%d;%2.3f;%2.3f;%4.2f;%2.2f;tec_box;\r\n" % (cnt, asc_press, asc_temp, rsc_press, rsc_temp, exttemp, rh, hectopascals) )
+            o1.write (time.strftime("%d/%m/%Y-%H:%M:%S;") + ("%d;%2.3f;%d;%2.3f;%2.3f;%4.2f;%2.2f;tec_box;\r\n" % (asc_press, asc_temp, rsc_press, rsc_temp, exttemp, rh, hectopascals) ) )
+	    o1.close()
+
     if (inputa == "X" or inputa == "x" or inputa == "Q" or inputa == "q"):
         print ("Bye-bye!")
         quit()
