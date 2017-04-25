@@ -205,9 +205,9 @@ class HRSC(object):
 	else:
 	    #print "MSB is 0, positive temp"
 	    temp = (float(raw) * 0.03125)
-        print "RAW: %s %s , %f" % (hex(raw_temp), hex(raw), temp )
-	with open('rsc_temp.dsv', 'ab') as o:
-	    o.write (time.strftime("%d/%m/%Y-%H:%M:%S;")+('%4.5f;%3.3f;\r\n' % (0.0, temp)))
+        print "RAW: %s %s , %4.3f" % (hex(raw_temp), hex(raw), temp )
+#	with open('rsc_temp.dsv', 'ab') as o:
+#	    o.write (time.strftime("%d/%m/%Y-%H:%M:%S;")+('%4.5f;%3.3f;\r\n' % (0.0, temp)))
 	return temp
     
     def read_temp(self):
@@ -229,8 +229,8 @@ class HRSC(object):
 
 	twait = 0.066
 
-	with open('rsc_temp.dsv', 'wb') as o:
-	    o.write ("date;press;temp;\r\n")
+#	with open('rsc_temp.dsv', 'wb') as o:
+#	    o.write ("date;press;temp;\r\n")
 
 	while(1):
     	    time.sleep(twait)
