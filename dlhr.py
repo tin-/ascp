@@ -156,10 +156,11 @@ class ASC_DLHR(object):
         Prs -= 0x7FFFFF
         fPress = (float(Prs))/(float(0x800000))
         fPress *= 100.0
-    
-        print "Status: 0x%X " % StatusByte,
-        print "\033[35;1mPressure: %4.5f %%FSS \033[33;1m Counts: %d " % (fPress, (outb[1] <<16) + (outb[2]<<8) + (outb[3]) ),
-        print "\033[36;1mTemperature: %3.3f 'C \033[39;0m" % fTemp
+	
+        if cfg.get('main', 'verbose', 1) == 'true':
+            print "Status: 0x%X " % StatusByte,
+	    print "\033[35;1mPressure: %4.5f %%FSS \033[33;1m Counts: %d " % (fPress, (outb[1] <<16) + (outb[2]<<8) + (outb[3]) ),
+    	    print "\033[36;1mTemperature: %3.3f 'C \033[39;0m" % fTemp
 
         #print " 0x%X%X%X " % (outb[1], outb[2], outb[3]),
         
