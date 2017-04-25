@@ -276,7 +276,8 @@ class HRSC(object):
 	print float(press) / pow(2,23)
 
 	spi.close()
-	return (float(press) / pow(2,23))
+	#return (float(press) / pow(2,23))
+	return (adc_data[0]<<16|adc_data[1]<<8|adc_data[2])
         
     def comp_readings(self, raw_pressure, raw_temp):
 	OffsetCoefficient0 = self.conv_to_float(sensor_rom[130], sensor_rom[131], sensor_rom[132], sensor_rom[133])

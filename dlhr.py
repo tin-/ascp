@@ -160,10 +160,7 @@ class ASC_DLHR(object):
         print "Status: 0x%X " % StatusByte,
         print "\033[35;1mPressure: %4.5f %%FSS \033[33;1m Counts: %d " % (fPress, (outb[1] <<16) + (outb[2]<<8) + (outb[3]) ),
         print "\033[36;1mTemperature: %3.3f 'C \033[39;0m" % fTemp
-	
-	with open('asc_dlhr.dsv', 'ab') as o:
-	    o.write (time.strftime("%d/%m/%Y-%H:%M:%S;")+('%4.5f;%3.3f;\r\n' % (fPress, fTemp)))
-        
+
         #print " 0x%X%X%X " % (outb[1], outb[2], outb[3]),
         
         #Tmp = outb[4] << 16;
@@ -171,4 +168,4 @@ class ASC_DLHR(object):
         #Tmp += outb[6];
         
         #print " %X " % Tmp
-        return 0
+        return ((outb[1] <<16) + (outb[2]<<8) + (outb[3])),fTemp
