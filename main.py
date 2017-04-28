@@ -245,32 +245,31 @@ while True:
 	cnt = -2000
 	while cnt <= 200000:
 	    global tec_temp
-	    time.sleep(0.3)
 	    if ( (cnt >= 100) and (enable_start == 0) ):
 	        enable_start = 1
     		cnt = 0
 
 	    if (enable_start == 1):
-    		if (tec_temp >= 52.0 and reverse_dir == 0):
+    		if (tec_temp >= 47.0 and reverse_dir == 0):
     	    	    reverse_dir = 1
-	    	    cnt = 60000
+	    	    cnt = 30000
 
     	    if ( (cnt > 0) and ((cnt % 100) == 0) and (reverse_dir == 0) ):
-        	tec_temp = 22 + ((float(cnt) / 200)*0.1)
+        	tec_temp = 22 + ((float(cnt) / 100)*0.1)
         	print ("Set TEC Temp = %2.1f" % tec_temp)
 		smu.deduct_tmp(tec_temp)
 
-	    if ( (cnt >= 60000) ):
+	    if ( (cnt >= 30000) ):
     		reverse_dir = 1
 
-	    if (cnt >= 80000 and cnt <= 14000):
+	    if (cnt >= 40000 and cnt <= 70000):
     		if ( (cnt > 0) and ((cnt % 100) == 0) and (reverse_dir == 1) ):
-        	    tec_temp = 52 - ((float(cnt-80000) / 200)*0.1)
+        	    tec_temp = 47 - ((float(cnt-40000) / 100)*0.1)
         	    print ("Set TEC Temp = %2.1f" % tec_temp)
         	    if (cnt >= 0):
 			smu.deduct_tmp(tec_temp)
 
-	    if (cnt >= 160000):
+	    if (cnt >= 80000):
 		#smu.off_temp()
 	        quit()
 		#smu.deduct_tmp(tec_temp)
