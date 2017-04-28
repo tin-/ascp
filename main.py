@@ -242,10 +242,10 @@ while True:
 
 	create_local_file(fileName)
 
-	cnt = -20000
+	cnt = -2000
 	while cnt <= 200000:
 	    global tec_temp
-	    time.sleep(1)
+	    time.sleep(0.3)
 	    if ( (cnt >= 100) and (enable_start == 0) ):
 	        enable_start = 1
     		cnt = 0
