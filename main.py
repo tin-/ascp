@@ -255,7 +255,7 @@ while True:
 	    	    cnt = 30000
 
     	    if ( (cnt > 0) and ((cnt % 100) == 0) and (reverse_dir == 0) ):
-        	tec_temp = 22 + ((float(cnt) / 100)*0.1)
+        	tec_temp = 23 + ((float(cnt) / 1000)*1)
         	print ("Set TEC Temp = %2.1f" % tec_temp)
 		smu.deduct_tmp(tec_temp)
 
@@ -264,7 +264,7 @@ while True:
 
 	    if (cnt >= 40000 and cnt <= 70000):
     		if ( (cnt > 0) and ((cnt % 100) == 0) and (reverse_dir == 1) ):
-        	    tec_temp = 47 - ((float(cnt-40000) / 100)*0.1)
+        	    tec_temp = 47 - ((float(cnt-40000) / 1000)*1)
         	    print ("Set TEC Temp = %2.1f" % tec_temp)
         	    if (cnt >= 0):
 			smu.deduct_tmp(tec_temp)
