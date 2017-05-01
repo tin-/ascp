@@ -251,9 +251,9 @@ while True:
         print ("Testing RSC")
         sensorrsc.sensor_info()
         sensorrsc.adc_configure()
-	#sensorrsc.set_speed(20) #in SPS
+	sensorrsc.set_speed(20) #in SPS
 	sensorrsc.read_temp()
-	time.sleep(0.004)
+	time.sleep(0.1)
         sensorrsc.read_pressure()
 
 	DoReads = 0
@@ -264,17 +264,13 @@ while True:
 	    #display_clear()
 
             rsc_temp = sensorrsc.read_temp()
-	    time.sleep(0.166666)
-    	    rsc_press = sensorrsc.read_pressure()
+    	    #rsc_press = sensorrsc.read_pressure()
             DoReads = 0
 
 	    #Read BME280
 	    get_THP()
 	    tec_rtd, tec_curr = smu.get_data()
-        
-	    test = sensorrsc.comp_readings(rsc_temp, rsc_press)
-	    #print ("\033[0;31mRSC CompPressure = %f, Temp: %f, Raw_data: %d\033[0;39m" % (test, rsc_temp, rsc_press) )
-
+	    test = sensorrsc.comp_readings(rsc_temp, 10)
 	    with open(fileName, 'a') as o1:
 		print ("%8d RSC:%.6f;%2.3f \033[0;32mA %2.3f R %4.2f P %2.2f \033[0;33mTEC:%2.3f SV: %2.3f\033[0;39m" % (cnt, test, rsc_temp, exttemp, rh, hectopascals, tec_rtd, tec_temp) )
         	o1.write (time.strftime("%d/%m/%Y-%H:%M:%S;") + ("%.6f;%2.3f;%4.2f;%2.2f;%2.3f;%2.3f;%2.3f\r\n" % (test, rsc_temp, exttemp, rh, hectopascals, tec_rtd, tec_temp) ) )

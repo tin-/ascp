@@ -153,13 +153,17 @@ class ASC_DLHR(object):
         
         # Convert Pressure to %Full Scale Span ( +/- 100%)
         Prs = (outb[1] <<16) + (outb[2]<<8) + (outb[3])
+        iPrs = (outb[1] <<16) + (outb[2]<<8) + (outb[3])
         Prs -= 0x7FFFFF
         fPress = (float(Prs))/(float(0x800000))
         fPress *= 100.0
+	sensor_range = float(cfg.get('dut', 'asc_range', 1))
+	sensor_type = int(cfg.get('dut', 'asc_type', 1)) # 1 - gauge, 2 - diff
+	fiPress = 1.25*((iPrs - (0.5*float(0x1000000) ) ) / float(0x1000000) ) * (sensor_range * sensor_type)
 	
         if cfg.get('main', 'verbose', 1) == 'true':
             print "Status: 0x%X " % StatusByte,
-	    print "\033[35;1mPressure: %4.5f %%FSS \033[33;1m Counts: %d " % (fPress, (outb[1] <<16) + (outb[2]<<8) + (outb[3]) ),
+	    print "\033[35;1mPressure: %4.5f %%FSS Pressure: %4.6f inH2O \033[33;1m Counts: %d " % (fPress, fiPress, (outb[1] <<16) + (outb[2]<<8) + (outb[3]) ),
     	    print "\033[36;1mTemperature: %3.3f 'C \033[39;0m" % fTemp
 
         #print " 0x%X%X%X " % (outb[1], outb[2], outb[3]),

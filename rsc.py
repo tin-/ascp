@@ -108,12 +108,13 @@ class HRSC(object):
         spi.open(0, 1)
 	spi.mode = 0b00
 	for i in range (0,256):
-	    sensor_rom[i] = spi.xfer([HRSC_EAD_EEPROM_LSB, i, 0x00], 100000)[2] # Read low page
+	    sensor_rom[i] = spi.xfer([HRSC_EAD_EEPROM_LSB, i, 0x00], 10000)[2] # Read low page
 #	    print "%c" % (sensor_rom[i]),
 	for i in range (0,256):
-    	    sensor_rom[i+256] = spi.xfer([HRSC_EAD_EEPROM_MSB, i, 0x00], 100000)[2] # Read high page
+    	    sensor_rom[i+256] = spi.xfer([HRSC_EAD_EEPROM_MSB, i, 0x00], 10000)[2] # Read high page
 	# Clear EEPROM SS , set mode 1 for ADC
         spi.close()
+
         return 0
         
     def adc_configure(self):
@@ -195,6 +196,7 @@ class HRSC(object):
 	# Write configuration register
 	command = HRSC_ADC_WREG|(self.regaddr << 2)|(self.bytewr & 0x03)
 	print ("\033[0;36mADC config %02X : %02X\033[0;39m" % (command, self.reg_wr))
+	time.sleep(0.1)
         test = spi.xfer([command, self.reg_wr], 10000)
         print test
 
@@ -274,7 +276,7 @@ class HRSC(object):
         test = spi.xfer([command, self.reg_wr], 10000)
 
 	#while(1):
-        time.sleep(1)
+        time.sleep(0.3333)
     	adc_data = spi.xfer([0,0, command, self.reg_wr], 10000)
 	if cfg.get('main', 'verbose', 1) == 'true':
     	    print hex(adc_data[0]),hex(adc_data[1]),hex(adc_data[2]),
@@ -283,8 +285,15 @@ class HRSC(object):
 	    print float(press) / pow(2,23)
 
 	spi.close()
-	#return (float(press) / pow(2,23))
-	return (adc_data[0]<<16|adc_data[1]<<8|adc_data[2])
+
+	if ((adc_data[0]<<16|adc_data[1]<<8|adc_data[2]) > 0x7FFFFF):
+	#    print "NEgative"
+    	     pdatad = ((adc_data[0]<<16|adc_data[1]<<8|adc_data[2])) - 0x1000000
+	     return pdatad
+	else: # ((adc_data[0]<<16|adc_data[1]<<8|adc_data[2]) < 0x1000000):
+	#    print "POSiTive"
+	     pdatad = (adc_data[0]<<16|adc_data[1]<<8|adc_data[2])
+	     return pdatad
         
     def comp_readings(self, raw_pressure, raw_temp):
 	#display_clear()
@@ -313,18 +322,21 @@ class HRSC(object):
 	raw_temp = self.read_temp()
 	raw_temp2 = raw_temp * raw_temp
 	raw_temp3 = raw_temp2 * raw_temp
+        time.sleep(0.3333)
+
 	if cfg.get('main', 'verbose', 1) == 'true':
 	    print ("Temps ",raw_temp,raw_temp2,raw_temp3)
 
-	Pint1 = self.read_pressure() - ( (OffsetCoefficient3 * raw_temp3) + (OffsetCoefficient2 * raw_temp2) + OffsetCoefficient1 * raw_temp + OffsetCoefficient0 )
+	#print "Pressure data = %X %d " % (self.read_pressure(), self.read_pressure())
+	Pint1 = (self.read_pressure() ) - ( (OffsetCoefficient3 * raw_temp3) + (OffsetCoefficient2 * raw_temp2) + (OffsetCoefficient1 * raw_temp) + OffsetCoefficient0 )
 	if cfg.get('main', 'verbose', 1) == 'true':
 	    print "Pint1", Pint1
-	Pint2 = Pint1 / ((SpanCoefficient3 * raw_temp3) + (SpanCoefficient2 * raw_temp2) + SpanCoefficient1 * raw_temp + SpanCoefficient0)
+	Pint2 = Pint1 / ((SpanCoefficient3 * raw_temp3) + (SpanCoefficient2 * raw_temp2) + (SpanCoefficient1 * raw_temp) + SpanCoefficient0)
 	if cfg.get('main', 'verbose', 1) == 'true':
 	    print "Pint2", Pint2
 
-	Ptemp2 = Pint2 * Pint2
-	Ptemp3 = Ptemp2 * Pint2
+	Ptemp2 = (Pint2 * Pint2)
+	Ptemp3 = (Ptemp2 * Pint2)
 
 	PComp_FS = (ShapeCoefficient3 * Ptemp3) + (ShapeCoefficient2 * Ptemp2) + (ShapeCoefficient1 * Pint2) + ShapeCoefficient0
 	if cfg.get('main', 'verbose', 1) == 'true':
@@ -332,7 +344,7 @@ class HRSC(object):
 	self.PCompr = (PComp_FS * PRange) + Pmin #[Engineering Units]
 	if cfg.get('main', 'verbose', 1) == 'true':
 	    print "\033[1;33mPComp out = %f" % self.PCompr
-	tdata = float( ((PComp_FS * PRange) + Pmin) )
+	tdata = float( (PComp_FS * PRange) + Pmin )
         return tdata
 
     def read_sensor(self):
