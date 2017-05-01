@@ -63,12 +63,12 @@ class tec_meter():
 	#Set voltage limit
 	self.inst.write(":sour:volt:prot 9.5") #+9.5V limit
 	#Set current limit
-	self.inst.write(":sens:curr:prot 1.2") #2.5A limit
+	self.inst.write(":sens:curr:prot 1.1") #2.5A limit
 	#Set temperature limit*
 	self.inst.write(":sour:temp:prot:high 65")  #75C max temp
 	self.inst.write(":sour:temp:prot:low 5")   #15C min temp
 	self.inst.write(":sour:temp:lcon:GAIN 270")   #15C min temp
-	self.inst.write(":sour:temp:lcon:INT 0.05")   #15C min temp
+	self.inst.write(":sour:temp:lcon:INT 0.02")   #15C min temp
 	self.inst.write(":sour:temp:lcon:DER 0.02")   #15C min temp
 	self.inst.write(":sour:temp:prot:state ON") #enable temp #protection (default)
 

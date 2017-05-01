@@ -20,16 +20,24 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+from __future__ import division
 import imp
 import sys
 import os
 import time
 import ConfigParser
+from console import *
 from bme280 import *
 
 cfg = ConfigParser.ConfigParser()
 cfg.read('pressure.conf')
 cfg.sections()
+
+sys.stdout.write("\x1b[2J")
+sys.stdout.flush()
+
+cursor_pos(0,0)
+print_pos(0,0, "R")
 
 if cfg.get('main', 'interface', 1) == 'i2c':
     raise ValueError ('I2C interface not supported, change to SPI')
@@ -79,6 +87,8 @@ menu = """\033[1;32m[0] - Help guide
 [12] - U: Toggle Warmup cycles on/off
 [13] - Test RSC sensor
 [14] - Log all sensors
+[15] - Log only RSC
+[16] - Set TEC to 26C
 [X] - Quit\033[0;39m
 """
 
@@ -114,6 +124,14 @@ def create_local_file(fileName):
     if (os.path.isfile(fileName) == False):
         with open(fileName, 'a') as o1:
             o1.write("date;asc_press;asc_temp;rsc_press;rsc_temp;bme_temp;bme_press;bme_rh;tec_box;tec_temp;\r\n")
+            print ("file %s does not exist\r\n" % fileName) 
+    else: 
+        print ("file %s exists\r\n" % fileName)
+
+def create_local_log(fileName):
+    if (os.path.isfile(fileName) == False):
+        with open(fileName, 'a') as o1:
+            o1.write("date;rsc_press;rsc_temp;bme_temp;bme_press;bme_rh;tec_box;tec_temp;\r\n")
             print ("file %s does not exist\r\n" % fileName) 
     else: 
         print ("file %s exists\r\n" % fileName)
@@ -225,9 +243,48 @@ while True:
         # 7. Apply the compensation formulae to the temperature and pressure readings in order to calculate a pressure value.
 	sensorrsc.comp_readings(10,10)
         # 8. Repeat steps 4, 5 and 6 in a loop to take additional readings
-        
+        print sensorrsc.comp_readings(10,10)
         print ("All done!")
 
+    if (inputa == "15"):
+
+        print ("Testing RSC")
+        sensorrsc.sensor_info()
+        sensorrsc.adc_configure()
+	#sensorrsc.set_speed(20) #in SPS
+	sensorrsc.read_temp()
+	time.sleep(0.004)
+        sensorrsc.read_pressure()
+
+	DoReads = 0
+        print "Reading sensor. Press any key to abort"
+	create_local_log(fileName)
+	cnt = 0
+        while DoReads != 1:
+	    #display_clear()
+
+            rsc_temp = sensorrsc.read_temp()
+	    time.sleep(0.166666)
+    	    rsc_press = sensorrsc.read_pressure()
+            DoReads = 0
+
+	    #Read BME280
+	    get_THP()
+	    tec_rtd, tec_curr = smu.get_data()
+        
+	    test = sensorrsc.comp_readings(rsc_temp, rsc_press)
+	    #print ("\033[0;31mRSC CompPressure = %f, Temp: %f, Raw_data: %d\033[0;39m" % (test, rsc_temp, rsc_press) )
+
+	    with open(fileName, 'a') as o1:
+		print ("%8d RSC:%.6f;%2.3f \033[0;32mA %2.3f R %4.2f P %2.2f \033[0;33mTEC:%2.3f SV: %2.3f\033[0;39m" % (cnt, test, rsc_temp, exttemp, rh, hectopascals, tec_rtd, tec_temp) )
+        	o1.write (time.strftime("%d/%m/%Y-%H:%M:%S;") + ("%.6f;%2.3f;%4.2f;%2.2f;%2.3f;%2.3f;%2.3f\r\n" % (test, rsc_temp, exttemp, rh, hectopascals, tec_rtd, tec_temp) ) )
+		o1.close()
+	    cnt = cnt + 1
+
+    if (inputa == "16"):
+	print "Setting 30C"
+	smu.deduct_tmp(26.00)
+	
     if (inputa == "14"):
 	print "Logging start.."
 

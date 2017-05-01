@@ -20,9 +20,11 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+from __future__ import division
 import logging
 import time
 import ConfigParser
+from console import *
 
 cfg = ConfigParser.ConfigParser()
 cfg.read('pressure.conf')
@@ -60,7 +62,7 @@ Traw     = 0.0                  # Uncompensated temperature from ADC
 Pint1    = 0.0                  # Intermediate value 1
 Pint2    = 0.0                  # Intermediate value 2
 Pcomp_fs = 0.0                  # Compensated output pressure 
-Pcomp    = 0.0                  # Compensated output pressure, in units
+#Pcomp    = 0.0                  # Compensated output pressure, in units
 
 
 try:
@@ -105,10 +107,10 @@ class HRSC(object):
         # Assert EEPROM SS to L, Deassert ADC SS to H, Set mode 0 or mode 4
         spi.open(0, 1)
 	spi.mode = 0b00
-	for i in range (0,255):
+	for i in range (0,256):
 	    sensor_rom[i] = spi.xfer([HRSC_EAD_EEPROM_LSB, i, 0x00], 100000)[2] # Read low page
 #	    print "%c" % (sensor_rom[i]),
-	for i in range (0,255):
+	for i in range (0,256):
     	    sensor_rom[i+256] = spi.xfer([HRSC_EAD_EEPROM_MSB, i, 0x00], 100000)[2] # Read high page
 	# Clear EEPROM SS , set mode 1 for ADC
         spi.close()
@@ -285,6 +287,8 @@ class HRSC(object):
 	return (adc_data[0]<<16|adc_data[1]<<8|adc_data[2])
         
     def comp_readings(self, raw_pressure, raw_temp):
+	#display_clear()
+	self.Pcompr = 0.0
 	OffsetCoefficient0 = self.conv_to_float(sensor_rom[130], sensor_rom[131], sensor_rom[132], sensor_rom[133])
 	OffsetCoefficient1 = self.conv_to_float(sensor_rom[134], sensor_rom[135], sensor_rom[136], sensor_rom[137])
 	OffsetCoefficient2 = self.conv_to_float(sensor_rom[138], sensor_rom[139], sensor_rom[140], sensor_rom[141])
@@ -299,21 +303,38 @@ class HRSC(object):
 	ShapeCoefficient3  = self.conv_to_float(sensor_rom[302], sensor_rom[303], sensor_rom[304], sensor_rom[305])
 	PRange = self.conv_to_float(sensor_rom[27], sensor_rom[28], sensor_rom[29], sensor_rom[30])
 	Pmin = self.conv_to_float(sensor_rom[31], sensor_rom[32], sensor_rom[33], sensor_rom[34])
-	print "Offsets",OffsetCoefficient0,OffsetCoefficient1,OffsetCoefficient2,OffsetCoefficient3
-	print "Span",SpanCoefficient0,SpanCoefficient1,SpanCoefficient2,SpanCoefficient3
-	print "Shape",ShapeCoefficient0,ShapeCoefficient1,ShapeCoefficient2,ShapeCoefficient3
+	if cfg.get('main', 'verbose', 1) == 'true':
+    	    print "\033[0;33mOffsets\033[0;39m",OffsetCoefficient0,OffsetCoefficient1,OffsetCoefficient2,OffsetCoefficient3
+    	    print "\033[0;33mSpan",SpanCoefficient0,SpanCoefficient1,SpanCoefficient2,SpanCoefficient3
+	    print "\033[0;33mShape",ShapeCoefficient0,ShapeCoefficient1,ShapeCoefficient2,ShapeCoefficient3
+	    print "\033[0;33mPrange",PRange
+	    print "\033[0;33mPmin",Pmin
 
-	Pint1 = self.read_pressure() - (OffsetCoefficient3 * self.read_temp() + OffsetCoefficient2 * self.read_temp() + OffsetCoefficient1 * self.read_temp() + OffsetCoefficient0)
-	print "Pint1", Pint1
-	Pint2 = Pint1 / (SpanCoefficient3 * self.read_temp() + SpanCoefficient2 * self.read_temp() + SpanCoefficient1 * self.read_temp() + SpanCoefficient0)
-	print "Pint2", Pint2
-	PComp_FS = ShapeCoefficient3 * Pint2 + ShapeCoefficient2 * Pint2 + ShapeCoefficient1 * Pint2 + ShapeCoefficient0
-	print "PComp_FS", PComp_FS
-	PComp = (PComp_FS * PRange) + Pmin #[Engineering Units]
-	print "PComp = ", PComp
+	raw_temp = self.read_temp()
+	raw_temp2 = raw_temp * raw_temp
+	raw_temp3 = raw_temp2 * raw_temp
+	if cfg.get('main', 'verbose', 1) == 'true':
+	    print ("Temps ",raw_temp,raw_temp2,raw_temp3)
 
-        return 1
-    
+	Pint1 = self.read_pressure() - ( (OffsetCoefficient3 * raw_temp3) + (OffsetCoefficient2 * raw_temp2) + OffsetCoefficient1 * raw_temp + OffsetCoefficient0 )
+	if cfg.get('main', 'verbose', 1) == 'true':
+	    print "Pint1", Pint1
+	Pint2 = Pint1 / ((SpanCoefficient3 * raw_temp3) + (SpanCoefficient2 * raw_temp2) + SpanCoefficient1 * raw_temp + SpanCoefficient0)
+	if cfg.get('main', 'verbose', 1) == 'true':
+	    print "Pint2", Pint2
+
+	Ptemp2 = Pint2 * Pint2
+	Ptemp3 = Ptemp2 * Pint2
+
+	PComp_FS = (ShapeCoefficient3 * Ptemp3) + (ShapeCoefficient2 * Ptemp2) + (ShapeCoefficient1 * Pint2) + ShapeCoefficient0
+	if cfg.get('main', 'verbose', 1) == 'true':
+	    print "PComp_FS", PComp_FS
+	self.PCompr = (PComp_FS * PRange) + Pmin #[Engineering Units]
+	if cfg.get('main', 'verbose', 1) == 'true':
+	    print "\033[1;33mPComp out = %f" % self.PCompr
+	tdata = float( ((PComp_FS * PRange) + Pmin) )
+        return tdata
+
     def read_sensor(self):
         outb = [0,0,0,0,0,0,0,0]
     
